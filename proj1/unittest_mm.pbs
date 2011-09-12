@@ -1,0 +1,19 @@
+#PBS -q class
+#PBS -l nodes=1
+#PBS -l walltime=00:02:00
+#PBS -N Proj1
+
+export OMPI_MCA_mpi_yield_when_idle=0
+cd $PBS_O_WORKDIR
+
+
+date
+hostname
+echo $PWD
+cat $PBS_NODEFILE
+echo -e "\n\n"
+
+# Run the ping-pong benchmark
+mpirun --hostfile $PBS_NODEFILE -np 1 ./unittest_mm
+
+# eof
