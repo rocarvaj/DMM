@@ -42,6 +42,8 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     int i;
     int p;
     int rank = 0;
+    int rankRow = 0;
+    int rankCol = 0;
     int indexX = rank % procGridX;
     int indexY = (rank - indexX) / procGridX;
     int rowGroupIndex[procGridY];
@@ -54,6 +56,8 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_group(MPI_COMM_WORLD, &originalGroup);
+    
+    fprintf(stderr, "Got rank: %d\n", rank);
 
     for(p = 0; p < procGridY; ++p)
         rowGroupIndex[p] = p * procGridX + indexX;
@@ -69,8 +73,16 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     MPI_Comm_create(MPI_COMM_WORLD, rowGroup, &rowComm);
     MPI_Comm_create(MPI_COMM_WORLD, colGroup, &colComm);
 
+    /* Get new rank */
+    MPI_Comm_rank(rowComm, &rankRow);
+    MPI_Comm_rank(colComm, &rankCol);
+
+    fprintf(stderr, "[rank = %d / rankRow = %d]\n", rank, rankRow);
+
     for(i = 0; i < k/pb; ++i)
     {
+    	fprintf(stderr, ">> i = %d / rank = %d / rankRow = %d\n", i, rank, rankRow);
+
         whoseTurnRow = (int) i * pb * procGridX / k;
         whoseTurnCol = (int) i * pb * procGridY / k;
 
@@ -78,21 +90,21 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
         /* Row */
         if(rank == whoseTurnRow)
         {
-            int buffer = 1;
-            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
+            /*int buffer = rank;
+            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);*/
 
-            printf("I'm proc: %d, and sent message!\n", rank);
+            fprintf(stderr, "I'm proc: %d, and sent message!\n", rank);
         }
         else
         {
-            int buffer;
-            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
-            printf("I'm proc: %d, and got message: %d\n", rank, buffer);
+            /*int buffer;
+            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);*/
+            fprintf(stderr, "I'm proc: %d, and got message: %d\n", rank, 0);
 
         }
 
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    /* MPI_Barrier(MPI_COMM_WORLD); */
 
 }
