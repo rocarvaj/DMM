@@ -44,8 +44,8 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     int rank = 0;
     int rankRow = 0;
     int rankCol = 0;
-    int indexX = rank % procGridX;
-    int indexY = (rank - indexX) / procGridX;
+    int indexX;
+    int indexY;
     int rowGroupIndex[procGridY];
     int colGroupIndex[procGridX];
     int whoseTurnRow;
@@ -57,53 +57,78 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_group(MPI_COMM_WORLD, &originalGroup);
     
-    /* fprintf(stderr, "Got rank: %d\n", rank);*/
+    indexX = rank % procGridX;
+    indexY = (rank - indexX)/procGridX;
 
+    fprintf(stderr, "[Rank %d] indexX = %d, indexY = %d\n", rank, indexX, indexY);
+
+    fprintf(stderr, "[Rank %d] Ranks in row group: ", rank);
     for(p = 0; p < procGridY; ++p)
+    {
         rowGroupIndex[p] = p * procGridX + indexX;
+        fprintf(stderr, "%d, ", rowGroupIndex[p]);
+    }
 
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, "[Rank %d] Ranks in col group: ", rank);
     for(p = 0; p < procGridX; ++p)
+    {
         colGroupIndex[p] = indexY * procGridX + p;
+        fprintf(stderr, "%d, ", colGroupIndex[p]);
+    }
+
+    fprintf(stderr, "\n");
 
     /* Create groups */
-    MPI_Group_incl(originalGroup, procGridY, rowGroupIndex, &rowGroup);
-    MPI_Group_incl(originalGroup, procGridX, colGroupIndex, &colGroup);
+    if(MPI_Group_incl(originalGroup, procGridY, rowGroupIndex, &rowGroup))
+    {
+        fprintf(stderr, "Error creating group\n");
+        MPI_Finalize();
+    }
+    if(MPI_Group_incl(originalGroup, procGridX, colGroupIndex, &colGroup))
+    {
+        fprintf(stderr, "Error creating group\n");
+        MPI_Finalize();
+    }
 
     /* Create communicators */
-    MPI_Comm_create(MPI_COMM_WORLD, rowGroup, &rowComm);
-    MPI_Comm_create(MPI_COMM_WORLD, colGroup, &colComm);
+    if(MPI_Comm_create(MPI_COMM_WORLD, rowGroup, &rowComm))
+    {
+        fprintf(stderr, "Error creating group\n");
+        MPI_Finalize();
+    }
+     
+    if(MPI_Comm_create(MPI_COMM_WORLD, colGroup, &colComm))
+    {
+        fprintf(stderr, "Error creating group\n");
+        MPI_Finalize();
+    }
 
-
-    fprintf(stderr, "Created communicators...\n");
-
-    /* Get new rank */
-    /*MPI_Comm_rank(rowComm, &rankRow);
-    MPI_Comm_rank(colComm, &rankCol);*/
-
-    /* fprintf(stderr, "[rank = %d / rankRow = %d]\n", rank, rankRow); */
+    fprintf(stderr, "[Rank %d] Created communicators...\n", rank);
 
     for(i = 0; i < k/pb; ++i)
     {
-    	fprintf(stderr, ">> i = %d / rank = %d / rankRow = %d\n", i, rank, rankRow);
+        whoseTurnRow = (int) i * pb * procGridY / k;
+        whoseTurnCol = (int) i * pb * procGridX / k;
 
-        whoseTurnRow = (int) i * pb * procGridX / k;
-        whoseTurnCol = (int) i * pb * procGridY / k;
+        fprintf(stderr, "[Rank %d, i = %d] Senders: %d (row) / %d (col)\n", rank, i,  whoseTurnRow, whoseTurnCol);
 
 
         /* Broadcast column to Row */
-        if(rank == whoseTurnRow)
+        if(indexY == whoseTurnRow)
         {
             int buffer = rank;
             MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
 
-            fprintf(stderr, "I'm proc: %d, and sent message!\n", rank);
+            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnRow = %d)\n", rank, i, rank, whoseTurnRow);
         }
         else
         {
-            int buffer;
+            int buffer = 0;
             MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
-            fprintf(stderr, "I'm proc: %d, and got message: %d\n", rank, 0);
-
+            
+            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %d (whoseTurnRow = %d)\n", rank, i, rank, buffer, whoseTurnRow);
         }
 
     }
