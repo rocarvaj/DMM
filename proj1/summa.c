@@ -57,7 +57,7 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_group(MPI_COMM_WORLD, &originalGroup);
     
-    fprintf(stderr, "Got rank: %d\n", rank);
+    /* fprintf(stderr, "Got rank: %d\n", rank);*/
 
     for(p = 0; p < procGridY; ++p)
         rowGroupIndex[p] = p * procGridX + indexX;
@@ -73,11 +73,14 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     MPI_Comm_create(MPI_COMM_WORLD, rowGroup, &rowComm);
     MPI_Comm_create(MPI_COMM_WORLD, colGroup, &colComm);
 
-    /* Get new rank */
-    MPI_Comm_rank(rowComm, &rankRow);
-    MPI_Comm_rank(colComm, &rankCol);
 
-    fprintf(stderr, "[rank = %d / rankRow = %d]\n", rank, rankRow);
+    fprintf(stderr, "Created communicators...\n");
+
+    /* Get new rank */
+    /*MPI_Comm_rank(rowComm, &rankRow);
+    MPI_Comm_rank(colComm, &rankCol);*/
+
+    /* fprintf(stderr, "[rank = %d / rankRow = %d]\n", rank, rankRow); */
 
     for(i = 0; i < k/pb; ++i)
     {
@@ -87,18 +90,18 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
         whoseTurnCol = (int) i * pb * procGridY / k;
 
 
-        /* Row */
+        /* Broadcast column to Row */
         if(rank == whoseTurnRow)
         {
-            /*int buffer = rank;
-            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);*/
+            int buffer = rank;
+            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
 
             fprintf(stderr, "I'm proc: %d, and sent message!\n", rank);
         }
         else
         {
-            /*int buffer;
-            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);*/
+            int buffer;
+            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
             fprintf(stderr, "I'm proc: %d, and got message: %d\n", rank, 0);
 
         }
