@@ -56,7 +56,9 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_group(MPI_COMM_WORLD, &originalGroup);
-    
+
+    fprintf(stderr, "[Rank %d] New call to summa function...\n", rank);
+
     indexX = rank % procGridX;
     indexY = (rank - indexX)/procGridX;
 
@@ -114,21 +116,25 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
 
         fprintf(stderr, "[Rank %d, i = %d] Senders: %d (row) / %d (col)\n", rank, i,  whoseTurnRow, whoseTurnCol);
 
-
         /* Broadcast column to Row */
         if(indexY == whoseTurnRow)
         {
             int buffer = rank;
+            fprintf(stderr, "[Rank %d, i = %d] Value of indexY before Bcast1 = %d\n", rank, i, indexY);
             MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
+
+            fprintf(stderr, "[Rank %d, i = %d] Value of indexY after Bcast1 = %d\n", rank, i, indexY);
 
             fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnRow = %d)\n", rank, i, rank, whoseTurnRow);
         }
         else
         {
-            int buffer = 0;
+            int buffer;
+            fprintf(stderr, "[Rank %d, i = %d] Value of indexY before Bcast2 = %d\n", rank, i, indexY);
             MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
+            fprintf(stderr, "[Rank %d, i = %d] Value of indexY after Bcast2 = %d\n", rank, i, indexY);
             
-            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %d (whoseTurnRow = %d)\n", rank, i, rank, buffer, whoseTurnRow);
+            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %d (whoseTurnRow = %d, indexY = %d)\n", rank, i, rank, buffer, whoseTurnRow, indexY);
         }
 
     }
