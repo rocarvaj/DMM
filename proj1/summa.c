@@ -42,14 +42,18 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     int i;
     int p;
     int rank = 0;
-    int rankRow = 0;
-    int rankCol = 0;
     int indexX;
     int indexY;
     int rowGroupIndex[procGridY];
     int colGroupIndex[procGridX];
     int whoseTurnRow;
     int whoseTurnCol;
+    
+    int sizeStripA = pb * m/procGridX;
+    int sizeStripB = pb * n/procGridY;
+    
+    double *bufferA;
+    double *bufferB;
 
     MPI_Group originalGroup, rowGroup, colGroup;
     MPI_Comm rowComm, colComm;
@@ -114,28 +118,81 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
         whoseTurnRow = (int) i * pb * procGridY / k;
         whoseTurnCol = (int) i * pb * procGridX / k;
 
+        bufferA = (double *) malloc(sizeStripA * sizeof(double));
+        bufferB = (double *) malloc(sizeStripB * sizeof(double));
+
         fprintf(stderr, "[Rank %d, i = %d] Senders: %d (row) / %d (col)\n", rank, i,  whoseTurnRow, whoseTurnCol);
 
         /* Broadcast column to Row */
         if(indexY == whoseTurnRow)
         {
-            int buffer = rank;
-            fprintf(stderr, "[Rank %d, i = %d] Value of indexY before Bcast1 = %d\n", rank, i, indexY);
-            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
+            int k;
 
-            fprintf(stderr, "[Rank %d, i = %d] Value of indexY after Bcast1 = %d\n", rank, i, indexY);
+            /* Copy A's coefficients to buffer */
+            for(k = 0; k < sizeStripA; ++k)
+            {
+                bufferA[k] = Ablock[i * sizeStripA + k]; 
+            }
 
-            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnRow = %d)\n", rank, i, rank, whoseTurnRow);
+
+            if(MPI_Bcast(bufferA, sizeStripA * sizeof(double), MPI_DOUBLE, whoseTurnRow, rowComm))
+            {
+                fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                MPI_Finalize();
+            }
+
         }
         else
         {
-            int buffer;
-            fprintf(stderr, "[Rank %d, i = %d] Value of indexY before Bcast2 = %d\n", rank, i, indexY);
-            MPI_Bcast(&buffer, sizeof(int), MPI_INT, whoseTurnRow, rowComm);
-            fprintf(stderr, "[Rank %d, i = %d] Value of indexY after Bcast2 = %d\n", rank, i, indexY);
-            
-            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %d (whoseTurnRow = %d, indexY = %d)\n", rank, i, rank, buffer, whoseTurnRow, indexY);
+            if(MPI_Bcast(bufferA, sizeStripA * sizeof(double), MPI_DOUBLE, whoseTurnRow, rowComm))
+            {
+                fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
+                MPI_Finalize();
+            }
+        } /* Row group */
+
+        /* Broadcast row to Column Group */
+        if(indexX == whoseTurnCol)
+        {
+            int c, r, cnt = 0;
+
+            /* Copy B's coefficients to buffer */
+            for(c = 0; c < n/procGridY; ++c)
+            {
+                for(r = 0; r < pb; ++r)
+                {
+                    bufferB[cnt] = Bblock[(i + 1) * pb * c  + i * pb + r];
+                    ++cnt;
+                }
+            }
+
+            if(MPI_Bcast(bufferB, sizeStripB * sizeof(double), MPI_DOUBLE, whoseTurnCol, colComm))
+            {
+                fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                MPI_Finalize();
+            }
+
+            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnCol = %d)\n", rank, i, rank, whoseTurnCol);
         }
+        else
+        {
+            if(MPI_Bcast(bufferB, sizeStripB * sizeof(double), MPI_DOUBLE, whoseTurnCol, colComm))
+            {
+                fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
+                MPI_Finalize();
+            }
+
+            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %f (whoseTurnCol = %d, indexX = %d)\n", rank, i, rank, bufferB[0], whoseTurnCol, indexX);
+        } /* Col group */
+
+
+        /* Multiply */
+
+        local_mm(m, n, k, 1.0, bufferA, m, bufferB, k, 1.0, Cblock, m);
+
+
+        free(bufferA);
+        free(bufferB);
 
     }
 
