@@ -118,33 +118,38 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
         whoseTurnRow = (int) i * pb * procGridY / k;
         whoseTurnCol = (int) i * pb * procGridX / k;
 
+        fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow: %d, whoseTurnCol: %d\n", rank, i, whoseTurnRow, whoseTurnCol);
+
         bufferA = (double *) malloc(sizeStripA * sizeof(double));
         bufferB = (double *) malloc(sizeStripB * sizeof(double));
 
-        fprintf(stderr, "[Rank %d, i = %d] Senders: %d (row) / %d (col)\n", rank, i,  whoseTurnRow, whoseTurnCol);
+        /*fprintf(stderr, "[Rank %d, i = %d] Senders: %d (row) / %d (col)\n", rank, i,  whoseTurnRow, whoseTurnCol);*/
 
         /* Broadcast column to Row */
         if(indexY == whoseTurnRow)
         {
-            int k;
+            int l;
+            int currentCol = i % (k / (procGridY * pb));
 
             /* Copy A's coefficients to buffer */
-            for(k = 0; k < sizeStripA; ++k)
+            for(l = 0; l < sizeStripA; ++l)
             {
-                bufferA[k] = Ablock[i * sizeStripA + k]; 
+                bufferA[l] = Ablock[currentCol * sizeStripA + l]; 
             }
 
 
-            if(MPI_Bcast(bufferA, sizeStripA * sizeof(double), MPI_DOUBLE, whoseTurnRow, rowComm))
+            if(MPI_Bcast(bufferA, sizeStripA, MPI_DOUBLE, whoseTurnRow, rowComm))
             {
                 fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
                 MPI_Finalize();
             }
 
+            fprintf(stderr, "[Rank %d, i = %d] Bcast to row!\n", rank, i);
+
         }
         else
         {
-            if(MPI_Bcast(bufferA, sizeStripA * sizeof(double), MPI_DOUBLE, whoseTurnRow, rowComm))
+            if(MPI_Bcast(bufferA, sizeStripA, MPI_DOUBLE, whoseTurnRow, rowComm))
             {
                 fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
                 MPI_Finalize();
@@ -155,41 +160,45 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
         if(indexX == whoseTurnCol)
         {
             int c, r, cnt = 0;
+            int currentRow = i % (k / (procGridX * pb));
 
             /* Copy B's coefficients to buffer */
             for(c = 0; c < n/procGridY; ++c)
             {
                 for(r = 0; r < pb; ++r)
                 {
-                    bufferB[cnt] = Bblock[(i + 1) * pb * c  + i * pb + r];
+                    bufferB[cnt] = Bblock[(currentRow + 1) * pb * c  + currentRow * pb + r];
                     ++cnt;
                 }
             }
 
-            if(MPI_Bcast(bufferB, sizeStripB * sizeof(double), MPI_DOUBLE, whoseTurnCol, colComm))
+            if(MPI_Bcast(bufferB, sizeStripB, MPI_DOUBLE, whoseTurnCol, colComm))
             {
                 fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
                 MPI_Finalize();
             }
 
-            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnCol = %d)\n", rank, i, rank, whoseTurnCol);
+            fprintf(stderr, "[Rank %d, i = %d] Bcast to col!\n", rank, i);
+            
+            /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnCol = %d)\n", rank, i, rank, whoseTurnCol);*/
         }
         else
         {
-            if(MPI_Bcast(bufferB, sizeStripB * sizeof(double), MPI_DOUBLE, whoseTurnCol, colComm))
+            if(MPI_Bcast(bufferB, sizeStripB, MPI_DOUBLE, whoseTurnCol, colComm))
             {
                 fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
                 MPI_Finalize();
             }
 
-            fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %f (whoseTurnCol = %d, indexX = %d)\n", rank, i, rank, bufferB[0], whoseTurnCol, indexX);
+            /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %f (whoseTurnCol = %d, indexX = %d)\n", rank, i, rank, bufferB[0], whoseTurnCol, indexX);*/
         } /* Col group */
 
 
         /* Multiply */
 
-        local_mm(m, n, k, 1.0, bufferA, m, bufferB, k, 1.0, Cblock, m);
+        local_mm(m/procGridX, n/procGridY, pb, 1.0, bufferA, m/procGridX, bufferB, pb, 1.0, Cblock, m/procGridX);
 
+        fprintf(stderr, "[Rank %d, i = %d] Local A: %f, local B: %f (Bblock[0]: %f). Result: %f\n", rank, i, bufferA[0], bufferB[0], Bblock[0], Cblock[0]);
 
         free(bufferA);
         free(bufferB);
