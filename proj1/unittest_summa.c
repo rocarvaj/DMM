@@ -105,6 +105,29 @@ bool random_matrix_test(int m, int n, int k, int px, int py, int panel_size) {
   distribute_matrix(px, py, m, n, C, C_block, rank);
   distribute_matrix(px, py, m, n, CC, CC_block, rank);
 
+  if(rank == 0){
+      int l, q;
+
+      fprintf(stderr, "A = [");
+      for(l = 0; l < m; ++l)
+      {
+          for(q = 0; q < k; ++q)
+              fprintf(stderr, "%f ", A[q * m + l]);
+          fprintf(stderr, ";\n");
+      }
+      fprintf(stderr, "]\n");
+
+      fprintf(stderr, "B = [");
+      for(l = 0; l < k; ++l)
+      {
+          for(q = 0; q < n; ++q)
+              fprintf(stderr, "%f ", B[q * k + l]);
+          fprintf(stderr, ";\n");
+      }
+      fprintf(stderr, "]\n");
+
+  }
+
   if (rank == 0) {
 
     /* 
@@ -245,6 +268,7 @@ int main(int argc, char *argv[]) {
   }
 
   /** Test different sizes */
+  exit_on_fail( random_matrix_test(8, 8, 8, 4, 4, 1));
   exit_on_fail( random_matrix_test(16, 16, 16, 4, 4, 1));
   exit_on_fail( random_matrix_test(32, 32, 32, 4, 4, 1));
   exit_on_fail( random_matrix_test(128, 128, 128, 4, 4, 1));

@@ -12,6 +12,8 @@
 
 #include "local_mm.h"
 
+#define DEBUG_INFO 0
+
 /**
  * Distributed Matrix Multiply using the SUMMA algorithm
  *  Computes C = A*B + C
@@ -66,25 +68,25 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     indexX = rank % procGridX;
     indexY = (rank - indexX)/procGridX;
 
-    fprintf(stderr, "[Rank %d] indexX = %d, indexY = %d\n", rank, indexX, indexY);
+    if(DEBUG_INFO) fprintf(stderr, "[Rank %d] indexX = %d, indexY = %d\n", rank, indexX, indexY);
 
-    fprintf(stderr, "[Rank %d] Ranks in row group: ", rank);
+    if(DEBUG_INFO) fprintf(stderr, "[Rank %d] Ranks in row group: ", rank);
     for(p = 0; p < procGridY; ++p)
     {
         rowGroupIndex[p] = p * procGridX + indexX;
-        fprintf(stderr, "%d, ", rowGroupIndex[p]);
+        if (DEBUG_INFO) fprintf(stderr, "%d, ", rowGroupIndex[p]);
     }
 
-    fprintf(stderr, "\n");
+    if(DEBUG_INFO) fprintf(stderr, "\n");
 
-    fprintf(stderr, "[Rank %d] Ranks in col group: ", rank);
+    if(DEBUG_INFO) fprintf(stderr, "[Rank %d] Ranks in col group: ", rank);
     for(p = 0; p < procGridX; ++p)
     {
         colGroupIndex[p] = indexY * procGridX + p;
-        fprintf(stderr, "%d, ", colGroupIndex[p]);
+        if(DEBUG_INFO) fprintf(stderr, "%d, ", colGroupIndex[p]);
     }
 
-    fprintf(stderr, "\n");
+    if(DEBUG_INFO) fprintf(stderr, "\n");
 
     /* Create groups */
     if(MPI_Group_incl(originalGroup, procGridY, rowGroupIndex, &rowGroup))
@@ -111,14 +113,14 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
         MPI_Finalize();
     }
 
-    fprintf(stderr, "[Rank %d] Created communicators...\n", rank);
+    if(DEBUG_INFO) fprintf(stderr, "[Rank %d] Created communicators...\n", rank);
 
     for(i = 0; i < k/pb; ++i)
     {
         whoseTurnRow = (int) i * pb * procGridY / k;
         whoseTurnCol = (int) i * pb * procGridX / k;
 
-        fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow: %d, whoseTurnCol: %d\n", rank, i, whoseTurnRow, whoseTurnCol);
+        if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow: %d, whoseTurnCol: %d\n", rank, i, whoseTurnRow, whoseTurnCol);
 
         bufferA = (double *) malloc(sizeStripA * sizeof(double));
         bufferB = (double *) malloc(sizeStripB * sizeof(double));
@@ -136,7 +138,8 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
             {
                 bufferA[l] = Ablock[currentCol * sizeStripA + l]; 
             }
-
+            
+            
 
             if(MPI_Bcast(bufferA, sizeStripA, MPI_DOUBLE, whoseTurnRow, rowComm))
             {
@@ -144,7 +147,7 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
                 MPI_Finalize();
             }
 
-            fprintf(stderr, "[Rank %d, i = %d] Bcast to row!\n", rank, i);
+            if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Bcast to row!\n", rank, i);
 
         }
         else
@@ -167,7 +170,7 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
             {
                 for(r = 0; r < pb; ++r)
                 {
-                    bufferB[cnt] = Bblock[(currentRow + 1) * pb * c  + currentRow * pb + r];
+                    bufferB[cnt] = Bblock[c * k / procGridX  + currentRow * pb + r];
                     ++cnt;
                 }
             }
@@ -178,7 +181,7 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
                 MPI_Finalize();
             }
 
-            fprintf(stderr, "[Rank %d, i = %d] Bcast to col!\n", rank, i);
+            if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Bcast to col!\n", rank, i);
             
             /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnCol = %d)\n", rank, i, rank, whoseTurnCol);*/
         }
@@ -192,13 +195,36 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
 
             /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %f (whoseTurnCol = %d, indexX = %d)\n", rank, i, rank, bufferB[0], whoseTurnCol, indexX);*/
         } /* Col group */
+        
+        if(DEBUG_INFO)
+        {
+            int p, q;
 
+            fprintf(stderr, "[Rank %d, i = %d] bufferA = [", rank, i);
+            for(p = 0; p < m/procGridX; ++p)
+            {
+                for(q = 0; q < pb; ++q)
+                    fprintf(stderr, "%f ", bufferA[q * m/procGridX + p]);
+                fprintf(stderr, ";\n");
+            }
+            fprintf(stderr, "]\n");
+            
+            fprintf(stderr, "[Rank %d, i = %d ]bufferB = [", rank, i);
+            for(p = 0; p < pb; ++p)
+            {
+                for(q = 0; q < n/procGridY; ++q)
+                    fprintf(stderr, "%f ", bufferB[q * pb + p]);
+                fprintf(stderr, ";\n");
+            }
+            fprintf(stderr, "]\n");
+
+        }
 
         /* Multiply */
 
         local_mm(m/procGridX, n/procGridY, pb, 1.0, bufferA, m/procGridX, bufferB, pb, 1.0, Cblock, m/procGridX);
 
-        fprintf(stderr, "[Rank %d, i = %d] Local A: %f, local B: %f (Bblock[0]: %f). Result: %f\n", rank, i, bufferA[0], bufferB[0], Bblock[0], Cblock[0]);
+        if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Local A: %f, local B: %f (Bblock[0]: %f). Result: %f\n", rank, i, bufferA[0], bufferB[0], Bblock[0], Cblock[0]);
 
         free(bufferA);
         free(bufferB);
