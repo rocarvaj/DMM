@@ -64,6 +64,10 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     double *bufferA;
     double *bufferB;
 
+
+    assert(k % pb == 0);
+
+
     MPI_Group originalGroup, rowGroup, colGroup;
     MPI_Comm rowComm, colComm;
 
@@ -130,11 +134,22 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
             int panelRowCnt = 0;
             int panelColCnt = 0;
 
-            int nBlocksRow = pb / (k / procGridY) + (pb % (k / procGridY) > 0)? 1 : 0;
-            int nBlocksCol = pb / (k / procGridX) + (pb % (k / procGridX) > 0)? 1 : 0;
+            int auxRowPb = pb;
+            int auxColPb = pb;
+
+            int nBlocksRow = pb / (k / procGridY);
+            if(pb % (k / procGridY) > 0)
+                ++nBlocksRow;
+
+            int nBlocksCol = pb / (k / procGridX);
+            if(pb % (k / procGridX) > 0)
+                ++nBlocksCol;
 
             whoseTurnRow = (int) indexRowCnt / (k / procGridY);
             whoseTurnCol = (int) indexColCnt / (k / procGridX);
+
+
+            fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow = %d, whoseTurnCol = %d, nBlocksRow = %d, nBlocksCol = %d", rank, i, whoseTurnRow, whoseTurnCol, nBlocksRow, nBlocksCol);
 
             bufferA = (double *) malloc(sizeStripA * sizeof(double));
             bufferB = (double *) malloc(sizeStripB * sizeof(double));
@@ -144,10 +159,12 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
             for(b = 0; b < nBlocksRow; ++b)
             {
                 int c;
-                int lengthBand = MIN(k / procGridY - localRowCnt, pb);
+                int lengthBand = MIN(k / procGridY - localRowCnt, auxRowPb);
                 double *localBufferA = (double *) malloc(lengthBand * (m / procGridX) * sizeof(double));
 
-                if(rank == whoseTurnRow)
+                whoseTurnRow = (int) indexRowCnt / (k / procGridY);
+                
+                if(indexY == whoseTurnRow)
                 {
                     /* Fill local buffer */
                     int l;
@@ -185,8 +202,9 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
 
                 indexRowCnt += lengthBand;
                 panelRowCnt += lengthBand;
+                auxRowPb -= lengthBand;
                 
-                if(lengthBand == k / procGridY)
+                if((localRowCnt + lengthBand) % (k / procGridY) == 0)
                     localRowCnt = 0;
                 else
                     localRowCnt += lengthBand; 
@@ -204,10 +222,12 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
                 int c;
                 int r;
                 int cnt = 0;
-                int lengthBand = MIN(k / procGridX - localColCnt, pb);
+                int lengthBand = MIN(k / procGridX - localColCnt, auxColPb);
                 double *localBufferB = (double *) malloc(lengthBand * (n / procGridY) * sizeof(double));
 
-                if(rank == whoseTurnCol)
+                whoseTurnCol = (int) indexColCnt / (k / procGridX);
+                
+                if(indexX == whoseTurnCol)
                 {
                     /* Fill local buffer */
                     
@@ -245,15 +265,16 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
                 {
                     for(r = 0; r < lengthBand; ++r)
                     {
-                        bufferB[c * k / procGridX  + panelColCnt + r] = localBufferB[cnt];
+                        bufferB[c * pb  + panelColCnt + r] = localBufferB[cnt];
                         ++cnt;
                     }
                 }
 
                 indexColCnt += lengthBand;
                 panelColCnt += lengthBand;
+                auxColPb -= lengthBand;
 
-                if(lengthBand == k / procGridX)
+                if((localColCnt + lengthBand) % (k / procGridX) == 0)
                     localColCnt = 0;
                 else
                     localColCnt += lengthBand; 
