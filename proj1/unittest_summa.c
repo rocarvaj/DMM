@@ -105,6 +105,8 @@ bool random_matrix_test(int m, int n, int k, int px, int py, int panel_size) {
   distribute_matrix(px, py, m, n, C, C_block, rank);
   distribute_matrix(px, py, m, n, CC, CC_block, rank);
 
+  /* Printing matrices for debugging purposes */
+  /*
   if(rank == 0){
       int l, q;
 
@@ -127,6 +129,7 @@ bool random_matrix_test(int m, int n, int k, int px, int py, int panel_size) {
       fprintf(stderr, "]\n");
 
   }
+  */
 
   if (rank == 0) {
 
@@ -269,8 +272,8 @@ int main(int argc, char *argv[]) {
 
   /** Test different sizes */
   exit_on_fail( random_matrix_test(8, 8, 8, 4, 4, 1));
-  exit_on_fail( random_matrix_test(16, 16, 16, 4, 4, 1));
-  exit_on_fail( random_matrix_test(32, 32, 32, 4, 4, 1));
+  exit_on_fail( random_matrix_test(16, 16, 16, 4, 4, 4));
+  exit_on_fail( random_matrix_test(32, 32, 32, 4, 4, 16));
   exit_on_fail( random_matrix_test(128, 128, 128, 4, 4, 1));
   
   /* Test different shapes */
@@ -280,7 +283,7 @@ int main(int argc, char *argv[]) {
   /* Test different process grids */
   exit_on_fail( random_matrix_test(128, 128, 128, 8, 2, 1));
   exit_on_fail( random_matrix_test(128, 128, 128, 2, 8, 1));
-  exit_on_fail( random_matrix_test(128, 128, 128, 1, 16, 1));
+  exit_on_fail( random_matrix_test(128, 128, 128, 1, 16, 16));
   exit_on_fail( random_matrix_test(128, 128, 128, 16, 1, 1));
   
 finalize: MPI_Finalize();

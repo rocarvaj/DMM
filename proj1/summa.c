@@ -14,6 +14,8 @@
 
 #define DEBUG_INFO 0
 
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 /**
  * Distributed Matrix Multiply using the SUMMA algorithm
  *  Computes C = A*B + C
@@ -50,6 +52,11 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     int colGroupIndex[procGridX];
     int whoseTurnRow;
     int whoseTurnCol;
+
+    int indexRowCnt = 0;
+    int indexColCnt = 0;
+    int localRowCnt = 0;
+    int localColCnt = 0;
     
     int sizeStripA = pb * m/procGridX;
     int sizeStripB = pb * n/procGridY;
@@ -63,7 +70,7 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_group(MPI_COMM_WORLD, &originalGroup);
 
-    fprintf(stderr, "[Rank %d] New call to summa function...\n", rank);
+    if(DEBUG_INFO) fprintf(stderr, "[Rank %d] New call to summa function...\n", rank);
 
     indexX = rank % procGridX;
     indexY = (rank - indexX)/procGridX;
@@ -117,114 +124,263 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
 
     for(i = 0; i < k/pb; ++i)
     {
-        whoseTurnRow = (int) i * pb * procGridY / k;
-        whoseTurnCol = (int) i * pb * procGridX / k;
-
-        if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow: %d, whoseTurnCol: %d\n", rank, i, whoseTurnRow, whoseTurnCol);
-
-        bufferA = (double *) malloc(sizeStripA * sizeof(double));
-        bufferB = (double *) malloc(sizeStripB * sizeof(double));
-
-        /*fprintf(stderr, "[Rank %d, i = %d] Senders: %d (row) / %d (col)\n", rank, i,  whoseTurnRow, whoseTurnCol);*/
-
-        /* Broadcast column to Row */
-        if(indexY == whoseTurnRow)
+        if(pb > k/procGridX || pb > k/procGridY)
         {
-            int l;
-            int currentCol = i % (k / (procGridY * pb));
+            int b;
+            int panelRowCnt = 0;
+            int panelColCnt = 0;
 
-            /* Copy A's coefficients to buffer */
-            for(l = 0; l < sizeStripA; ++l)
+            int nBlocksRow = pb / (k / procGridY) + (pb % (k / procGridY) > 0)? 1 : 0;
+            int nBlocksCol = pb / (k / procGridX) + (pb % (k / procGridX) > 0)? 1 : 0;
+
+            whoseTurnRow = (int) indexRowCnt / (k / procGridY);
+            whoseTurnCol = (int) indexColCnt / (k / procGridX);
+
+            bufferA = (double *) malloc(sizeStripA * sizeof(double));
+            bufferB = (double *) malloc(sizeStripB * sizeof(double));
+
+            /* Rows */
+
+            for(b = 0; b < nBlocksRow; ++b)
             {
-                bufferA[l] = Ablock[currentCol * sizeStripA + l]; 
-            }
-            
-            
+                int c;
+                int lengthBand = MIN(k / procGridY - localRowCnt, pb);
+                double *localBufferA = (double *) malloc(lengthBand * (m / procGridX) * sizeof(double));
 
-            if(MPI_Bcast(bufferA, sizeStripA, MPI_DOUBLE, whoseTurnRow, rowComm))
-            {
-                fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
-                MPI_Finalize();
-            }
-
-            if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Bcast to row!\n", rank, i);
-
-        }
-        else
-        {
-            if(MPI_Bcast(bufferA, sizeStripA, MPI_DOUBLE, whoseTurnRow, rowComm))
-            {
-                fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
-                MPI_Finalize();
-            }
-        } /* Row group */
-
-        /* Broadcast row to Column Group */
-        if(indexX == whoseTurnCol)
-        {
-            int c, r, cnt = 0;
-            int currentRow = i % (k / (procGridX * pb));
-
-            /* Copy B's coefficients to buffer */
-            for(c = 0; c < n/procGridY; ++c)
-            {
-                for(r = 0; r < pb; ++r)
+                if(rank == whoseTurnRow)
                 {
-                    bufferB[cnt] = Bblock[c * k / procGridX  + currentRow * pb + r];
-                    ++cnt;
+                    /* Fill local buffer */
+                    int l;
+
+                    /* Copy A's coefficients to buffer */
+                    for(l = 0; l < lengthBand * (m / procGridX); ++l)
+                    {
+                        localBufferA[l] = Ablock[localRowCnt * (m / procGridX) + l]; 
+                    }
+
+                    if(MPI_Bcast(localBufferA, lengthBand * (m/ procGridX), MPI_DOUBLE, whoseTurnRow, rowComm))
+                    {
+                        fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                        MPI_Finalize();
+                    }
+
                 }
-            }
+                else
+                {
+                    if(MPI_Bcast(localBufferA, lengthBand * (m/ procGridX), MPI_DOUBLE, whoseTurnRow, rowComm))
+                    {
+                        fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                        MPI_Finalize();
+                    }
 
-            if(MPI_Bcast(bufferB, sizeStripB, MPI_DOUBLE, whoseTurnCol, colComm))
+                }
+
+
+                /* Fill up bufferA */
+                for(c = 0; c < lengthBand * (m / procGridX); ++c)
+                {
+                    bufferA[panelRowCnt * (k / procGridX) + c] = localBufferA[c];
+
+                }
+
+                indexRowCnt += lengthBand;
+                panelRowCnt += lengthBand;
+                
+                if(lengthBand == k / procGridY)
+                    localRowCnt = 0;
+                else
+                    localRowCnt += lengthBand; 
+
+
+                free(localBufferA);
+
+            } /* End for(b) */
+
+
+            /* Columns */
+
+            for(b = 0; b < nBlocksCol; ++b)
             {
-                fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
-                MPI_Finalize();
-            }
+                int c;
+                int r;
+                int cnt = 0;
+                int lengthBand = MIN(k / procGridX - localColCnt, pb);
+                double *localBufferB = (double *) malloc(lengthBand * (n / procGridY) * sizeof(double));
 
-            if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Bcast to col!\n", rank, i);
-            
-            /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnCol = %d)\n", rank, i, rank, whoseTurnCol);*/
-        }
+                if(rank == whoseTurnCol)
+                {
+                    /* Fill local buffer */
+                    
+                    /* Copy B's coefficients to buffer */
+                    for(c = 0; c < n / procGridY; ++c)
+                    {
+                        for(r = 0; r < lengthBand; ++r)
+                        {
+                            localBufferB[cnt] = Bblock[c * k / procGridX  + localColCnt + r];
+                            ++cnt;
+                        }
+                    }
+
+                    if(MPI_Bcast(localBufferB, lengthBand * (n / procGridY), MPI_DOUBLE, whoseTurnCol, colComm))
+                    {
+                        fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                        MPI_Finalize();
+                    }
+
+                }
+                else
+                {
+                    if(MPI_Bcast(localBufferB, lengthBand * (n / procGridY), MPI_DOUBLE, whoseTurnCol, colComm))
+                    {
+                        fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                        MPI_Finalize();
+                    }
+
+                }
+
+
+                /* Fill up bufferB */
+                cnt = 0;
+                for(c = 0; c < n / procGridY; ++c)
+                {
+                    for(r = 0; r < lengthBand; ++r)
+                    {
+                        bufferB[c * k / procGridX  + panelColCnt + r] = localBufferB[cnt];
+                        ++cnt;
+                    }
+                }
+
+                indexColCnt += lengthBand;
+                panelColCnt += lengthBand;
+
+                if(lengthBand == k / procGridX)
+                    localColCnt = 0;
+                else
+                    localColCnt += lengthBand; 
+
+
+                free(localBufferB);
+
+            } /* End for(b) */
+
+
+
+        } 
         else
         {
-            if(MPI_Bcast(bufferB, sizeStripB, MPI_DOUBLE, whoseTurnCol, colComm))
-            {
-                fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
-                MPI_Finalize();
-            }
-
-            /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %f (whoseTurnCol = %d, indexX = %d)\n", rank, i, rank, bufferB[0], whoseTurnCol, indexX);*/
-        } /* Col group */
+            /** Case pb <= min(k/procGridX, k/procGridY) **/
         
-        if(DEBUG_INFO)
-        {
-            int p, q;
+            whoseTurnRow = (int) i * pb * procGridY / k;
+            whoseTurnCol = (int) i * pb * procGridX / k;
 
-            fprintf(stderr, "[Rank %d, i = %d] bufferA = [", rank, i);
-            for(p = 0; p < m/procGridX; ++p)
-            {
-                for(q = 0; q < pb; ++q)
-                    fprintf(stderr, "%f ", bufferA[q * m/procGridX + p]);
-                fprintf(stderr, ";\n");
-            }
-            fprintf(stderr, "]\n");
-            
-            fprintf(stderr, "[Rank %d, i = %d ]bufferB = [", rank, i);
-            for(p = 0; p < pb; ++p)
-            {
-                for(q = 0; q < n/procGridY; ++q)
-                    fprintf(stderr, "%f ", bufferB[q * pb + p]);
-                fprintf(stderr, ";\n");
-            }
-            fprintf(stderr, "]\n");
+            if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow: %d, whoseTurnCol: %d\n", rank, i, whoseTurnRow, whoseTurnCol);
 
-        }
+            bufferA = (double *) malloc(sizeStripA * sizeof(double));
+            bufferB = (double *) malloc(sizeStripB * sizeof(double));
+
+            /*fprintf(stderr, "[Rank %d, i = %d] Senders: %d (row) / %d (col)\n", rank, i,  whoseTurnRow, whoseTurnCol);*/
+
+            /* Broadcast column to Row */
+            if(indexY == whoseTurnRow)
+            {
+                int l;
+                int currentCol = i % (k / (procGridY * pb));
+
+                /* Copy A's coefficients to buffer */
+                for(l = 0; l < sizeStripA; ++l)
+                {
+                    bufferA[l] = Ablock[currentCol * sizeStripA + l]; 
+                }
+
+
+
+                if(MPI_Bcast(bufferA, sizeStripA, MPI_DOUBLE, whoseTurnRow, rowComm))
+                {
+                    fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                    MPI_Finalize();
+                }
+
+                if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Bcast to row!\n", rank, i);
+
+            }
+            else
+            {
+                if(MPI_Bcast(bufferA, sizeStripA, MPI_DOUBLE, whoseTurnRow, rowComm))
+                {
+                    fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
+                    MPI_Finalize();
+                }
+            } /* Row group */
+
+            /* Broadcast row to Column Group */
+            if(indexX == whoseTurnCol)
+            {
+                int c, r, cnt = 0;
+                int currentRow = i % (k / (procGridX * pb));
+
+                /* Copy B's coefficients to buffer */
+                for(c = 0; c < n/procGridY; ++c)
+                {
+                    for(r = 0; r < pb; ++r)
+                    {
+                        bufferB[cnt] = Bblock[c * k / procGridX  + currentRow * pb + r];
+                        ++cnt;
+                    }
+                }
+
+                if(MPI_Bcast(bufferB, sizeStripB, MPI_DOUBLE, whoseTurnCol, colComm))
+                {
+                    fprintf(stderr, "[Rank %d, i = %d] Error!", rank, i);
+                    MPI_Finalize();
+                }
+
+                if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Bcast to col!\n", rank, i);
+
+                /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and sent message! (whoseTurnCol = %d)\n", rank, i, rank, whoseTurnCol);*/
+            }
+            else
+            {
+                if(MPI_Bcast(bufferB, sizeStripB, MPI_DOUBLE, whoseTurnCol, colComm))
+                {
+                    fprintf(stderr, "[Rank %d, i = %d] Error receiving!", rank, i);
+                    MPI_Finalize();
+                }
+
+                /*fprintf(stderr, "[Rank %d, i = %d] I'm proc: %d, and got message: %f (whoseTurnCol = %d, indexX = %d)\n", rank, i, rank, bufferB[0], whoseTurnCol, indexX);*/
+            } /* Col group */
+
+            if(DEBUG_INFO)
+            {
+                int p, q;
+
+                fprintf(stderr, "[Rank %d, i = %d] bufferA = [", rank, i);
+                for(p = 0; p < m/procGridX; ++p)
+                {
+                    for(q = 0; q < pb; ++q)
+                        fprintf(stderr, "%f ", bufferA[q * m/procGridX + p]);
+                    fprintf(stderr, ";\n");
+                }
+                fprintf(stderr, "]\n");
+
+                fprintf(stderr, "[Rank %d, i = %d ]bufferB = [", rank, i);
+                for(p = 0; p < pb; ++p)
+                {
+                    for(q = 0; q < n/procGridY; ++q)
+                        fprintf(stderr, "%f ", bufferB[q * pb + p]);
+                    fprintf(stderr, ";\n");
+                }
+                fprintf(stderr, "]\n");
+
+            }
+
+        } /* else (pb shorter than block) */
 
         /* Multiply */
 
         local_mm(m/procGridX, n/procGridY, pb, 1.0, bufferA, m/procGridX, bufferB, pb, 1.0, Cblock, m/procGridX);
 
         if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] Local A: %f, local B: %f (Bblock[0]: %f). Result: %f\n", rank, i, bufferA[0], bufferB[0], Bblock[0], Cblock[0]);
+
 
         free(bufferA);
         free(bufferB);
