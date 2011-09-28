@@ -24,8 +24,12 @@ void random_summa(int m, int n, int k, int px, int py, int pb, int iterations) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank); /* Get process id */
 
   if (rank == 0) {
-    printf(
+    /*printf(
         "random_matrix_test m=%d n=%d k=%d px=%d py=%d pb=%d iterations=%d.....",
+        m, n, k, px, py, pb, iterations);
+        */
+        printf(
+        "random_matrix_test, %d, %d, %d, %d, %d, %d, %d,",
         m, n, k, px, py, pb, iterations);
 
   }
@@ -57,7 +61,10 @@ void random_summa(int m, int n, int k, int px, int py, int pb, int iterations) {
   t_elapsed = MPI_Wtime() - t_start; /* Stop timer */
 
   if (rank == 0) {
-    printf("total_time=%lf, per_iteration=%lf\n", t_elapsed, t_elapsed
+    /*printf("total_time=%lf, per_iteration=%lf\n", t_elapsed, t_elapsed
+        / iterations);
+        */
+      printf("%lf, %lf\n", t_elapsed, t_elapsed
         / iterations);
   }
 
@@ -84,9 +91,26 @@ int main(int argc, char *argv[]) {
   	printf("Error: np=%d. Please use 64 processes\n",np);
   }
 
-  random_summa(256, 256, 256, 8, 8, 1, NUM_TRIALS);
+  /*random_summa(256, 256, 1024, 1, 64, 4, NUM_TRIALS);
+  random_summa(256, 256, 1024, 2, 32, 4, NUM_TRIALS);
+  random_summa(256, 256, 1024, 4, 16, 4, NUM_TRIALS);
+  random_summa(256, 256, 1024, 8, 8, 4, NUM_TRIALS);
 
-
+  random_summa(256, 256, 1024, 1, 64, 16, NUM_TRIALS);
+  random_summa(256, 256, 1024, 2, 32, 16, NUM_TRIALS);
+  random_summa(256, 256, 1024, 4, 16, 16, NUM_TRIALS);
+  random_summa(256, 256, 1024, 8, 8, 16, NUM_TRIALS);
+*/
+  random_summa(256, 256, 1024, 1, 64, 64, NUM_TRIALS);
+  random_summa(256, 256, 1024, 2, 32, 64, NUM_TRIALS);
+  random_summa(256, 256, 1024, 4, 16, 64, NUM_TRIALS);
+  random_summa(256, 256, 1024, 8, 8, 64, NUM_TRIALS);
+/*
+  random_summa(256, 256, 1024, 1, 64, 256, NUM_TRIALS);
+  random_summa(256, 256, 1024, 2, 32, 256, NUM_TRIALS);
+  random_summa(256, 256, 1024, 4, 16, 256, NUM_TRIALS);
+  random_summa(256, 256, 1024, 8, 8, 256, NUM_TRIALS);
+*/
   MPI_Finalize();
   return 0;
 }

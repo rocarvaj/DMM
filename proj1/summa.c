@@ -149,7 +149,7 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
             whoseTurnCol = (int) indexColCnt / (k / procGridX);
 
 
-            fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow = %d, whoseTurnCol = %d, nBlocksRow = %d, nBlocksCol = %d", rank, i, whoseTurnRow, whoseTurnCol, nBlocksRow, nBlocksCol);
+            if(DEBUG_INFO) fprintf(stderr, "[Rank %d, i = %d] whoseTurnRow = %d, whoseTurnCol = %d, nBlocksRow = %d, nBlocksCol = %d", rank, i, whoseTurnRow, whoseTurnCol, nBlocksRow, nBlocksCol);
 
             bufferA = (double *) malloc(sizeStripA * sizeof(double));
             bufferB = (double *) malloc(sizeStripB * sizeof(double));
