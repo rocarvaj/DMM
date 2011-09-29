@@ -201,13 +201,15 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
                 }
 
                 indexRowCnt += lengthBand;
-                panelRowCnt += lengthBand;
                 auxRowPb -= lengthBand;
                 
-                if((localRowCnt + lengthBand) % (k / procGridY) == 0)
+                localRowCnt += lengthBand; 
+                if(localRowCnt % (k / procGridY) == 0)
                     localRowCnt = 0;
-                else
-                    localRowCnt += lengthBand; 
+
+                panelRowCnt += lengthBand;
+                if(panelRowCnt % pb == 0)
+                    panelRowCnt = 0;
 
 
                 free(localBufferA);
@@ -271,14 +273,15 @@ void summa(int m, int n, int k, double *Ablock, double *Bblock, double *Cblock,
                 }
 
                 indexColCnt += lengthBand;
-                panelColCnt += lengthBand;
                 auxColPb -= lengthBand;
 
-                if((localColCnt + lengthBand) % (k / procGridX) == 0)
+                localColCnt += lengthBand;
+                if(localColCnt % (k / procGridX) == 0)
                     localColCnt = 0;
-                else
-                    localColCnt += lengthBand; 
 
+                panelColCnt += lengthBand;
+                if(panelColCnt % pb == 0)
+                    panelColCnt = 0;
 
                 free(localBufferB);
 
