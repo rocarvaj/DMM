@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <omp.h>
 
+#define SIZE_BM
 
     void
 report_num_threads(int level)
@@ -74,13 +75,15 @@ void local_mm(const int m, const int n, const int k, const double alpha,
           &ldc);
 
 #else
+
+#ifdef USE_NAIVE
   {
       int row, col;
       double dotprod;
 
       /* Iterate over the columns of C */
 
-      #pragma omp parallel for reduction (+:dotprod)
+      /*#pragma omp parallel for reduction (+:dotprod)*/
       for (col = 0; col < n; col++) {
 
           /* Iterate over the rows of C */
@@ -107,6 +110,12 @@ void local_mm(const int m, const int n, const int k, const double alpha,
       } /* col */
 
   }
+#else
+
+
+
+#endif
+
 #endif
 
 }
