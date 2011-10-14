@@ -14,6 +14,7 @@ cat $PBS_NODEFILE
 echo -e "\n\n"
 
 # Run the ping-pong benchmark
+export OMP_NUM_THREADS=4
 mpirun --hostfile $PBS_NODEFILE -np 1 ./unittest_mm
 
 # eof

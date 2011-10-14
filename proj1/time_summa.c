@@ -90,27 +90,13 @@ int main(int argc, char *argv[]) {
   if (np != 64) {
   	printf("Error: np=%d. Please use 64 processes\n",np);
   }
-
-  /*random_summa(256, 256, 1024, 1, 64, 4, NUM_TRIALS);
-  random_summa(256, 256, 1024, 2, 32, 4, NUM_TRIALS);
-  random_summa(256, 256, 1024, 4, 16, 4, NUM_TRIALS);
-  random_summa(256, 256, 1024, 8, 8, 4, NUM_TRIALS);
-
-  random_summa(256, 256, 1024, 1, 64, 16, NUM_TRIALS);
-  random_summa(256, 256, 1024, 2, 32, 16, NUM_TRIALS);
-  random_summa(256, 256, 1024, 4, 16, 16, NUM_TRIALS);
+  
+  random_summa(256, 256, 256, 8, 8, 16, NUM_TRIALS);
+  random_summa(1024, 256, 256, 8, 8, 16, NUM_TRIALS);
+  random_summa(256, 1024, 256, 8, 8, 16, NUM_TRIALS);
   random_summa(256, 256, 1024, 8, 8, 16, NUM_TRIALS);
-*/
-  random_summa(256, 256, 1024, 1, 64, 64, NUM_TRIALS);
-  random_summa(256, 256, 1024, 2, 32, 64, NUM_TRIALS);
-  random_summa(256, 256, 1024, 4, 16, 64, NUM_TRIALS);
-  random_summa(256, 256, 1024, 8, 8, 64, NUM_TRIALS);
-/*
-  random_summa(256, 256, 1024, 1, 64, 256, NUM_TRIALS);
-  random_summa(256, 256, 1024, 2, 32, 256, NUM_TRIALS);
-  random_summa(256, 256, 1024, 4, 16, 256, NUM_TRIALS);
-  random_summa(256, 256, 1024, 8, 8, 256, NUM_TRIALS);
-*/
+  random_summa(1024, 1024, 1024, 8, 8, 16, NUM_TRIALS);
+  
   MPI_Finalize();
   return 0;
 }

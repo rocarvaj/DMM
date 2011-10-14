@@ -47,8 +47,9 @@ void random_multiply(int m, int n, int k, int iterations) {
   deallocate_matrix(B);
   deallocate_matrix(C);
 
-  printf("total_time=%lf, per_iteration=%lf\n", t_elapsed, t_elapsed
-      / iterations);
+  /*printf("total_time=%lf, per_iteration=%lf\n", t_elapsed, t_elapsed
+      / iterations);*/
+  printf("Conf: %d, %d, %d, %lf, %lf\n", m, n, k, t_elapsed, t_elapsed / iterations);
 }
 
 int main(int argc, char *argv[]) {
@@ -65,7 +66,9 @@ int main(int argc, char *argv[]) {
   printf("[Using Host:%s -- Rank %d out of %d]\n", hostname, rank, np);
 
   if (rank == 0) {
-    random_multiply(512, 512, 512, NUM_TRIALS);
+      random_multiply(1024, 256, 256, NUM_TRIALS);
+      random_multiply(256, 1024, 256, NUM_TRIALS);
+      random_multiply(256, 256, 1024, NUM_TRIALS);
   }
 
   MPI_Finalize();

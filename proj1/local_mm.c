@@ -9,6 +9,16 @@
 #include <stdio.h>
 #include <omp.h>
 
+
+    void
+report_num_threads(int level)
+{ 
+#pragma omp single 
+    {
+        printf("Level %d: number of threads in the team - %d\n", level, omp_get_num_threads()); 
+    }
+}
+
 /**
  *
  *  Local Matrix Multiply
@@ -38,32 +48,52 @@ void local_mm(const int m, const int n, const int k, const double alpha,
     const double *A, const int lda, const double *B, const int ldb,
     const double beta, double *C, const int ldc) {
 
-  int row, col;
-
   /* Verify the sizes of lda, ladb, and ldc */
   assert(lda >= m);
   assert(ldb >= k);
   assert(ldc >= m);
 
+#ifdef USE_MKL
 
-  #pragma omp parallel shared (n, m, k, lda, ldb, ldc, A, B, C, alpha, beta)
+  printf("Using MKL...\n");
+  char transa[1] = {'N'};
+  char transb[1] = {'N'};
+
+  dgemm(transa,
+          transb,
+          &m,
+          &n,
+          &k,
+          &alpha,
+          A,
+          &lda,
+          B,
+          &ldb,
+          &beta,
+          C,
+          &ldc);
+
+#else
   {
+      int row, col;
+      double dotprod;
+
       /* Iterate over the columns of C */
 
-      #pragma omp for default (none) private (col)
+      #pragma omp parallel for reduction (+:dotprod)
       for (col = 0; col < n; col++) {
 
           /* Iterate over the rows of C */
 
-          #pragma omp for default (none) private (row)
+          /*#pragma omp parallel for reduction (+:dotprod)*/
           for (row = 0; row < m; row++) {
 
               int k_iter;
-              double dotprod = 0.0; /* Accumulates the sum of the dot-product */
+              dotprod = 0.0; /* Accumulates the sum of the dot-product */
 
               /* Iterate over column of A, row of B */
 
-              #pragma omp for default (none) reduction (+:dotprod) private (k_iter)
+              /*#pragma omp parallel for*/
               for (k_iter = 0; k_iter < k; k_iter++) {
                   int a_index, b_index;
                   a_index = (k_iter * lda) + row; /* Compute index of A element */
@@ -77,4 +107,6 @@ void local_mm(const int m, const int n, const int k, const double alpha,
       } /* col */
 
   }
+#endif
+
 }
