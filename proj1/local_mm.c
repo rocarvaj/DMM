@@ -9,7 +9,11 @@
 #include <stdio.h>
 #include <omp.h>
 
-#define SIZE_BM
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
+#define BM 1
+#define BK 1
+#define BN 1
 
     void
 report_num_threads(int level)
@@ -112,6 +116,44 @@ void local_mm(const int m, const int n, const int k, const double alpha,
   }
 #else
 
+{
+    int row;
+    int col;
+    int i;
+    int j;
+    int l;
+
+    double tmpSum = 0.0;
+    for(row = 0; row < m; row += BM)
+    {
+        for(col = 0; col < n; col += BN)
+        {
+            for(i = row; i < MIN(i + BM, m); ++i)
+            {
+                for(j = 0; j < MIN(j + BN, n); ++j)
+                {
+                    tmpSum = 0.0;
+                    
+                    for(l = 0; l < k; ++l)
+                    {
+                        int a_index, b_index;
+                        a_index = (l * lda) + i; /* Compute index of A element */
+                        b_index = (j * ldb) + l; /* Compute index of B element */
+                        tmpSum += A[a_index] * B[b_index]; /* Compute product of A and B */
+                    }
+                    
+                    int c_index = (j * ldc) + i;
+                    C[c_index] = (alpha * tmpSum) + (beta * C[c_index]);
+                }
+            }
+        }
+
+    }
+
+
+
+
+}
 
 
 #endif
